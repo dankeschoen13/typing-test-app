@@ -1,7 +1,19 @@
 import tkinter as tk
+from tkinter import font, messagebox
 from paragraphs import Offline
+import math
 
 DEFAULT_DIFFICULTY = 'easy'
+TYPING_TEST_DURATION = 60
+
+class Utilities:
+
+    @staticmethod
+    def cols_config(widget, total, expand=None, default_weight=0, expand_weight=1):
+        expand = expand or []
+        for col in range(total):
+            weight = expand_weight if col in expand else default_weight
+            widget.grid_columnconfigure(col, weight=weight)
 
 def input_blocker(event):
     return "break"
@@ -11,6 +23,9 @@ class TypingTest(tk.Tk):
     def __init__(self):
         super().__init__()
 
+        self.BOLD_FONT = font.Font(weight='bold')
+        self.utils = Utilities()
+
         self.title("Typing Test")
         self.minsize(800, 500)
         self.config(padx=50, pady=50)
@@ -18,9 +33,16 @@ class TypingTest(tk.Tk):
         self.UI = dict()
         self.UI['toolbar'] = self.render_top_toolbar()
         self.UI['main'] = self.render_body()
-        self.UI['more_options'] = self.render_bottom_toolbar()
+        self.UI['timer'] = self.render_bottom_toolbar()
+        # UI unpacking
+        self.user_input = self.UI['main']['user_input']
 
+        self.typed = None
+        self.duration = TYPING_TEST_DURATION
+        self.timer_started = False
         self.diff_select()
+        self.words_typed = ""
+        self.char_counter = 0
 
     def render_top_toolbar(self):
         toolbar = tk.Frame(self, highlightbackground='white', highlightthickness=1)
@@ -94,8 +116,10 @@ class TypingTest(tk.Tk):
             wrap='word',
             width=100,
             height=10,
+            state='disabled',
             highlightthickness=0
         )
+        user_input.bind('<KeyRelease>')
         user_input.pack(side="top", fill="both")
 
         paned.add(ttext)
@@ -110,18 +134,28 @@ class TypingTest(tk.Tk):
             highlightbackground='white'
         )
         options.pack(side="bottom", fill="x")
+        self.utils.cols_config(options, 5, [1, 3])
 
         start_button = tk.Button(
             options,
-            text="Start"
+            text="Start",
+            command=self.start_test
         )
-        start_button.pack(side='left', padx=5, pady=10)
+        start_button.grid(column=0, row=0, padx=5, pady=10)
 
         timer = tk.Label(
             options,
-            text="Timer:"
+            text="Duration: 1:00",
+            font=self.BOLD_FONT
         )
-        timer.pack(side='right', padx=5, pady=10)
+        timer.grid(column=2, row=0, padx=5, pady=10)
+
+        stop_button = tk.Button(
+            options,
+            text='Stop',
+            command=self.stop_test
+        )
+        stop_button.grid(column=4, row=0, padx=5, pady=10)
 
         return timer
 
@@ -136,6 +170,49 @@ class TypingTest(tk.Tk):
     def set_ttext_content(self, content):
         self.UI['main']['ttext'].delete("1.0", "end")
         self.UI['main']['ttext'].insert('1.0', content)
+
+    def start_test(self):
+        self.timer_started = True
+        self.after(1000, self.countdown, self.duration)
+        self.user_input.config(state='normal')
+        # input_field.bind('<KeyRelease>', self.typing)
+
+    def stop_test(self):
+        self.timer_started = False
+
+    def countdown(self, duration):
+        timer_min = math.floor(duration / 60)
+        timer_sec = duration % 60
+        if timer_sec < 10:
+            timer_sec = f"0{timer_sec}"
+
+        if duration > 0 and self.timer_started:
+            self.UI['timer'].config(
+                text=f"Timer Started: {timer_min}:{timer_sec}"
+            )
+            self.after(1000, self.countdown, duration - 1)
+        else:
+            self.UI['timer'].config(
+                text=f"Timer Stopped: {timer_min}:{timer_sec}"
+            )
+            self.calculate()
+
+    def calculate(self):
+        self.typed = self.user_input.get('1.0', tk.END)
+        self.user_input.config(state='disabled')
+
+        total_chars = len(self.typed.replace(" ", ""))
+        wpm = (total_chars / 5)
+        messagebox.showinfo(
+            title='Test Finished',
+            message=f'Your score is: {wpm} words per minute.'
+        )
+        self.UI['toolbar']['speed'].config(text=f"Record: {wpm} words per minute")
+
+    # def typing(self, event):
+    #     char_counter = 0
+    #     self.words_typed = event.keysym
+    #     print(self.words_typed)
 
 
 if __name__ == "__main__":
