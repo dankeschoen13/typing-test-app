@@ -195,19 +195,20 @@ class TypingTest(tk.Tk):
             self.UI['timer'].config(
                 text=f"Timer Stopped: {timer_min}:{timer_sec}"
             )
-            self.calculate()
+            self.calculate(duration)
 
-    def calculate(self):
+    def calculate(self, duration):
         self.typed = self.user_input.get('1.0', tk.END)
         self.user_input.config(state='disabled')
 
+        factor = TYPING_TEST_DURATION / (TYPING_TEST_DURATION - duration)
         total_chars = len(self.typed.replace(" ", ""))
-        wpm = (total_chars / 5)
+        wpm = (total_chars / 5) * factor
         messagebox.showinfo(
             title='Test Finished',
-            message=f'Your score is: {wpm} words per minute.'
+            message=f'Your score is: {wpm:.2f} words per minute.'
         )
-        self.UI['toolbar']['speed'].config(text=f"Record: {wpm} words per minute")
+        self.UI['toolbar']['speed'].config(text=f"Record: {wpm:.2f} words per minute")
 
     # def typing(self, event):
     #     char_counter = 0
