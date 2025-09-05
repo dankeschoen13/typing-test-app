@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import font, messagebox
 from paragraphs import Offline
 import math
+import difflib
 
 DEFAULT_DIFFICULTY = 'easy'
 TYPING_TEST_DURATION = 60
@@ -35,9 +36,9 @@ class TypingTest(tk.Tk):
         self.UI['main'] = self.render_body()
         self.UI['timer'] = self.render_bottom_toolbar()
         # UI unpacking
+        self.reference_text = self.UI['main']['ttext']
         self.user_input = self.UI['main']['user_input']
 
-        self.typed = None
         self.duration = TYPING_TEST_DURATION
         self.timer_started = False
         self.diff_select()
@@ -121,6 +122,7 @@ class TypingTest(tk.Tk):
         )
         user_input.bind('<KeyRelease>')
         user_input.pack(side="top", fill="both")
+        user_input.tag_config("mistake", background="pink", foreground="black")
 
         paned.add(ttext)
         paned.add(user_input)
@@ -168,13 +170,14 @@ class TypingTest(tk.Tk):
         self.set_ttext_content(ttext_content)
 
     def set_ttext_content(self, content):
-        self.UI['main']['ttext'].delete("1.0", "end")
-        self.UI['main']['ttext'].insert('1.0', content)
+        self.reference_text.delete("1.0", "end")
+        self.reference_text.insert('1.0', content)
 
     def start_test(self):
         self.timer_started = True
         self.after(1000, self.countdown, self.duration)
         self.user_input.config(state='normal')
+        self.user_input.delete("1.0", "end")
         # input_field.bind('<KeyRelease>', self.typing)
 
     def stop_test(self):
@@ -198,17 +201,47 @@ class TypingTest(tk.Tk):
             self.calculate(duration)
 
     def calculate(self, duration):
-        self.typed = self.user_input.get('1.0', tk.END)
-        self.user_input.config(state='disabled')
+        reference_text = self.reference_text.get('1.0', tk.END).strip()
+        typed_text = self.user_input.get('1.0', tk.END).strip()
+
+        ref_words = reference_text.split()
+        typed_words = typed_text.split()
+
+        ref_words_trimmed = ref_words[:len(typed_words)]
+
+        matcher = difflib.SequenceMatcher(None, ref_words_trimmed, typed_words)
+        mistakes = 0
+
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag in ("replace", "delete", "insert"):
+                mistakes += max(i2 - i1, j2 - j1)
+                for k in range(j1, j2):
+                    start = f"1.0+{self.get_word_start(typed_words, k)}c"
+                    end = f"1.0+{self.get_word_end(typed_words, k)}c"
+                    self.user_input.tag_add("mistake", start, end)
 
         factor = TYPING_TEST_DURATION / (TYPING_TEST_DURATION - duration)
-        total_chars = len(self.typed.replace(" ", ""))
-        wpm = (total_chars / 5) * factor
+        total_chars = len(typed_text.replace(" ", ""))
+        raw_wpm = (total_chars / 5) * factor
+        wpm = raw_wpm - mistakes
         messagebox.showinfo(
             title='Test Finished',
-            message=f'Your score is: {wpm:.2f} words per minute.'
+            message=f'Your score is: {wpm:.2f} words per minute. Mistakes {mistakes}'
         )
         self.UI['toolbar']['speed'].config(text=f"Record: {wpm:.2f} words per minute")
+        self.user_input.config(state='disabled')
+
+    @staticmethod
+    def get_word_start(words, index):
+        """Return character index where a word starts in joined text."""
+        return len(
+            " ".join(words[:index])
+        ) + (1 if index > 0 else 0)
+
+    @staticmethod
+    def get_word_end(words, index):
+        """Return character index where a word ends in joined text."""
+        return len(" ".join(words[:index + 1]))
 
     # def typing(self, event):
     #     char_counter = 0
